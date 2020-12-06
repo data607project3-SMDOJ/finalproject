@@ -1,0 +1,247 @@
+---
+title: "Final Project"
+author: 
+  - Shana Green
+  - Mark Gonsalves 
+  - Dominika Markowska-Desvallons
+  - Orli Khaimova 
+  - John Mazon
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+### Introduction
+
+As a group, we worked with public CSV data from NYC Health Dept relating to positive cases by zip code in New York City. Secondly, we utilized our shared GitHub to upload a CSV with information regarding Presidential Voting Results by election district which we were able to find [here]("https://vote.nyc/page/election-results-summary"). 
+
+We were able to communicate via phone call, text message, email, zoom meeting and collaborating with shared group [Github]("https://github.com/data607project3-SMDOJ/finalproject").
+
+In early October, New York announced a zoning strategy to tackle on the rising COVID-19 cases. However, once the unofficial results from the 2020 Presidential election came out, we noticed that
+there was a resemblance visually. There were similar patterns between areas that were marked in the red zone, meaning a 7 day positivity rate of over 3%, and areas where the majority voted for one candidate. We wanted to further see if that was just a visual resemblance or if there is a correlation.
+
+We wanted a project that would be focused on current events and Covid and the Presidential election are about as topical as you can get.  We thought combining the Covid rate in New York City with the voting patterns from the 2020 Presidential elections would be interesting to see if there is a correlation between voting for a candidate and the current rate of Covid spread in New York City.  We used COVID data for the week leading up to and including election day.
+
+
+```{r, echo=FALSE}
+image = "https://media.nbcnewyork.com/2020/10/4718339661-1080pnbcstations.jpg"
+
+# include source here
+```
+
+<center><img src="`r image`"></center>
+
+### Loading Libraries
+
+```{r, warning = FALSE, message = FALSE}
+library(tidyverse)
+library(magrittr)
+library(sf)
+library(tmaptools)
+library(tmap)
+library(raster)
+library(zipcodeR)
+library(tigris)
+```
+
+### Loading Data
+
+The `covid` data is uploaded directly from the NYC Department of Health and is updated daily while the election data was downloaded from [vote.nyc]("https://vote.nyc/page/election-results-summary".
+
+```{r}
+covid <- read.csv("https://raw.githubusercontent.com/nychealth/coronavirus-data/master/latest/pp-by-modzcta.csv")
+election <- read.csv("https://raw.githubusercontent.com/data607project3-SMDOJ/finalproject/main/Data/00000100000Citywide%20President%20Vice%20President%20Citywide%20EDLevel.csv",
+                     header = FALSE)
+```
+
+### Cleaning Data
+
+As with many other projects we utilized tidyverse functions to sort the data. we used `filter` to grab information with an end date of November 3, 2020(election day). We made the data set longer by putting zipcodes in a column utilizing `pivot_longer` function. We also cleaned up our column names utilizing `set_colnames` to make it more understandable with terms such as `date`, `zipcode`, `rate`  
+We also performed routine maintenance of removing leading “x” from the zip code headers utilizing `str_remove` and `str_replace` to remove punctuation from numbers.
+
+We also cleaned the `election` data. We removed the first 11 columns as they were messy and actually the headers. `AD` is the assembly district and `ED` is the election district. We also filtered out the results to see where the EDAD was active as some were combined with other election districts since they were very small. We also filtered out the candidates and only looked at the Democratic and Republican candidates, Joseph R. Biden and Donald J. Trump. Afterwards were replaced the entire string, which included the presidential and vice-presidential candidate as a unit, with just the last name of the presidential candidate. We also combined the tallies for each candidate as Trump was a candidate for the Republican and Conservatives parties and Biden was a candidate for the Democratic and Working Families parties. Afterwards, we found the proportion of votes for the candidates, excluding the independent party candidates, in each election district. 
+
+We also had to create a `ADED` variable which is a 5 digit code which would be used later on to perform a`left_join`.
+
+
+```{r, warning = FALSE, message = FALSE}
+# filtered election day, made the dataset longer by putting zip codes in a column
+covid <- covid %>%
+  filter(End.date == "11/03/2020") %>%
+  pivot_longer(2:184, names_to = "zipcode", values_to = "rate") %>%
+  set_colnames(c("date", "zipcode", "rate"))
+
+# cleaned up the zip code variable by removing extra characters
+covid$zipcode <- covid$zipcode %>%
+  str_remove("X") %>%
+  str_replace("\\.", " ")
+
+zipcodes <- covid[(7:183), ] %>%
+  dplyr::select(zipcode) %>%
+  as.vector()
+ 
+# extracted columns, filtered out ED that were not combined, extracted more columns, 
+# replaced the candidate names with their last name
+# made tally numeric
+# combined tallies for each candidate since diff party
+election <- election %>%
+  dplyr::select(12:22) %>%
+  set_colnames(c("AD", "ED", "County", "EDAD_Status", "Event", 
+               "Party/Independent_Body", "Office/Position Title", "District_Key",
+               "VoteFor", "Candidate", "Tally")) %>%
+  filter(EDAD_Status == "IN-PLAY") %>%
+  dplyr::select(c("AD", "ED", "County", "Candidate", "Tally")) %>%
+  filter(str_detect(Candidate, "Trump|Biden")) %>%
+  mutate(Candidate = str_replace_all(Candidate, ".*Trump.*", "Trump"),
+         Candidate = str_replace_all(Candidate, ".*Biden.*", "Biden"),
+         Tally = as.numeric(str_replace_all(Tally, ",", ""))) %>%
+  group_by(AD, ED, Candidate) %>%
+  mutate(Tally = sum(Tally)) %>%
+  ungroup() %>%
+  unique() %>%
+  group_by(AD, ED) %>%
+  mutate(Proportion = Tally / sum(Tally)) %>%
+  filter(sum(Tally) != 0) %>%
+  ungroup() %>% 
+  mutate(ED = as.character(ED),
+         AD = as.character(AD),
+         ADED = ifelse(str_length(ED) == 1, str_c(AD, "00", ED),
+                if_else(str_length(ED) == 2, str_c(AD, "0", ED), 
+                str_c(AD, ED))),
+         ADED = as.numeric(ADED)) 
+
+
+
+```
+
+### Matching Zip Codes to Election District
+
+Here we used shapefiles in order to match the election district to the zip code. We had some challenges here but eventually we figured it out. We downloaded the shapefiles from NYC OpenData for the modified 
+ZIP Code Tabulation Areas (ZCTA) and election districts. They included the boundaries and polygons for each zip code and district.
+
+First, we drew a thematic map showcasing the boundaries of the election districts and zip codes. The `combined` map shows the election districts contained in each zip code.
+
+Then, we joined the election district shapefile with the `election` data frame from earlier. We selected the majority winner from each election district. We assigned them a negative value if majority was Trump and a positive value if majority was Biden. This way when we plotted the shapefile, the negative value were red and positive values were blue. The closer it was to 1, the darker it was. Similarly, we joined the zip code shapefile with the `covid` data from earlier to plot the 7 day rolling average positivity rates on the day of election.
+
+Lastly we created the `zip_aded` which was just a data frame with the Zip codes and ADED codes so that we can use it as a reference to join `covid` and `election`.
+
+```{r, warning = FALSE, message = FALSE}
+# download.file("https://github.com/data607project3-SMDOJ/finalproject/blob/main/Data/geo_export_1acb0e0a-cfac-4e46-99c6-44540a928d68.shp", "geo_export_1acb0e0a-cfac-4e46-99c6-44540a928d68.shp")
+# ed_geo <- st_read("geo_export_1acb0e0a-cfac-4e46-99c6-44540a928d68.shp")
+
+ed_geo <- st_read("C:/Users/Home/Downloads/Election Districts/geo_export_1b77199e-c7e9-4c48-a1db-4b30f4ef79a5.shp")
+
+# zipcode_geo <- st_read("C:/Users/Home/Downloads/ZIP_CODE_040114/ZIP_CODE_040114.shp")
+
+# download.file("https://data.cityofnewyork.us/api/geospatial/pri4-ifjk?method=export&format=Shapefile", "geo_export_1acb0e0a-cfac-4e46-99c6-44540a928d68.shp")
+# ny_zc_geo <- st_read("geo_export_1acb0e0a-cfac-4e46-99c6-44540a928d68.shp")
+
+ny_zc_geo <- st_read("C:/Users/Home/Downloads/Modified Zip Code Tabulation Areas (MODZCTA)/geo_export_1acb0e0a-cfac-4e46-99c6-44540a928d68.shp")
+
+qtm(ed_geo) +
+  tm_legend(show = FALSE)
+
+qtm(ny_zc_geo) +
+  tm_legend(show = FALSE)
+
+
+data(ed_geo, ny_zc_geo)
+tmap_mode("plot")
+## tmap mode set to plotting
+combined <- tm_shape(ed_geo) +
+  tm_borders("red") +
+  tm_shape(ny_zc_geo) +
+  tm_borders("blue", lwd = .5)  +
+  tm_legend(show = FALSE)
+
+combined
+
+ed_filter <- ed_geo %>%
+  left_join(election, by = c("elect_dist" = "ADED")) %>%
+  group_by(elect_dist) %>%
+  filter(Proportion == max(Proportion)) %>%
+  mutate(Proportion = ifelse(Candidate == "Trump", Proportion * -1, Proportion))
+
+  
+ed_filter %>%
+  ggplot(.) +
+  geom_sf(aes(fill = Proportion), color = NA) +
+  scale_fill_gradient2() +
+  ggtitle("Election Results")
+
+#low = "red",mid = scales::muted("purple"), high = "blue"
+
+zip_filter <- ny_zc_geo %>%
+  left_join(covid, by = c("modzcta" = "zipcode"))
+
+zip_filter %>%
+  ggplot(.) +
+  geom_sf(aes(fill = rate)) +
+  scale_fill_gradient(low = "white", high = "dark red") +
+  ggtitle("COVID-19 rates by Zip Code on Election Day")
+
+st_crs(ed_geo) <- 4269 
+st_crs(ny_zc_geo) <- 4269
+
+zip_aded <- st_join(ed_geo,  ny_zc_geo, join = st_intersects) %>%
+  dplyr::select(c(elect_dist, modzcta)) %>%
+  st_set_geometry(., NULL) %>%
+  set_colnames(c("ADED", "zipcode")) %>%
+  na.omit() %>%
+  filter(zipcode != "99999")
+```
+
+Below is when we used the  `tigris` package which allows us to download TIGER/Line
+shapefiles from the US Census Bureau. It does take a few minutes to download the 
+data just for New York alone. 
+
+```{r}
+#The process below takes too long so its reuploaded via csv
+
+#ny_zipcode_geo <- zctas(cb = TRUE, state = "36")
+
+#combined <- st_join(ed_geo,  ny_zipcode_geo, join = st_intersects)
+
+#zipcode_aded <- combined %>%
+#  select(c(elect_dist, ZCTA5CE10)) %>%
+#  st_set_geometry(., NULL) %>%
+#  set_colnames(c("ADED", "zipcode"))
+
+#write.csv(zipcode_aded, "C:/Users/Home/Desktop/MSDS/DATA 607/zipcode_aded.csv")
+
+#zipcode_aded <- read.csv("https://raw.githubusercontent.com/data607project3-SMDOJ/finalproject/main/Data/zipcode_aded.csv") %>%
+#  select(c("ADED", "zipcode"))
+```
+
+
+### Data Visualization
+
+Now since we had a data frame to be used as a reference, we joined the `covid` and `election` data. We made a scatterplot to show the relationship between the proportion for each presidential election and the Covid 7-day rolling average positivity rates.
+
+```{r, warning = FALSE, message = FALSE}
+covid_election <- left_join(covid, zip_aded, by = "zipcode") %>%
+  left_join(., election, by = "ADED")
+
+covid_election <- covid_election[(7:nrow(covid_election)), ]
+
+covid_election %>%
+  filter(Candidate == "Biden") %>%
+  ggplot(., aes(x = Proportion, y = rate)) + 
+  geom_point() + 
+  ggtitle("Proportion of Biden Voters vs Covid Rate") +
+  geom_smooth(method = "lm")
+
+covid_election %>%
+  filter(Candidate == "Trump") %>%
+  ggplot(., aes(x = Proportion, y = rate)) + 
+  geom_point() + 
+  ggtitle("Proportion of Trump Voters vs Covid Rate") +
+  geom_smooth(method = "lm")
+
+```
+
+### Conclusion
+
+In conclusion, we find a connection between higher rates of COVID in districts where Trump votes were higher than Biden’s in New York City.  
