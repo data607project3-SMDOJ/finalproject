@@ -1,5 +1,6 @@
 ---
-title: "Final Project"
+title: "COVID rates vs. Election Results in NYC"
+subtitle: "DATA 607 Final Project"
 author: 
   - Shana Green
   - Mark Gonsalves 
@@ -11,24 +12,38 @@ output: html_document
 
 ```{r setup, include=FALSE}
 knitr::opts_chunk$set(echo = TRUE)
+options(tigris_use_cache = TRUE)
 ```
 
 ### Introduction
 
-As a group, we worked with public CSV data from NYC Health Dept relating to positive cases by zip code in New York City. Secondly, we utilized our shared GitHub to upload a CSV with information regarding Presidential Voting Results by election district which we were able to find [here]("https://vote.nyc/page/election-results-summary"). 
+As a group, we worked with public CSV data from NYC Health Dept relating to 
+positive cases by zip code in New York City. Secondly, we utilized our shared 
+GitHub to upload a CSV with information regarding Presidential Voting Results by 
+election district which we were able to find [here]("https://vote.nyc/page/election-results-summary"). 
 
-We were able to communicate via phone call, text message, email, zoom meeting and collaborating with shared group [Github]("https://github.com/data607project3-SMDOJ/finalproject").
+We were able to communicate via phone call, text message, email, zoom meeting and
+collaborating with shared group [Github]("https://github.com/data607project3-SMDOJ/finalproject").
 
-In early October, New York announced a zoning strategy to tackle on the rising COVID-19 cases. However, once the unofficial results from the 2020 Presidential election came out, we noticed that
-there was a resemblance visually. There were similar patterns between areas that were marked in the red zone, meaning a 7 day positivity rate of over 3%, and areas where the majority voted for one candidate. We wanted to further see if that was just a visual resemblance or if there is a correlation.
+In early October, New York announced a zoning strategy to tackle on the rising 
+COVID-19 cases. However, once the unofficial results from the 2020 Presidential 
+election came out, we noticed that there was a resemblance visually. There were 
+similar patterns between areas that were marked in the red zone, meaning a 7 day 
+positivity rate of over 3%, and areas where the majority voted for one candidate. 
+We wanted to further see if that was just a visual resemblance or if there is a 
+correlation.
 
-We wanted a project that would be focused on current events and Covid and the Presidential election are about as topical as you can get.  We thought combining the Covid rate in New York City with the voting patterns from the 2020 Presidential elections would be interesting to see if there is a correlation between voting for a candidate and the current rate of Covid spread in New York City.  We used COVID data for the week leading up to and including election day.
+We wanted a project that would be focused on current events and Covid and the
+Presidential election are about as topical as you can get.  We thought combining
+the Covid rate in New York City with the voting patterns from the 2020 Presidential
+elections would be interesting to see if there is a correlation between voting for
+a candidate and the current rate of Covid spread in New York City.  We used COVID
+data for the week leading up to and including election day.
 
 
-```{r, echo=FALSE}
-image = "https://media.nbcnewyork.com/2020/10/4718339661-1080pnbcstations.jpg"
+```{r, echo=FALSE, out.width = "50%", fig.align = "center"}
+image = "https://i.redd.it/gkwnuqxxpor51.jpg"
 
-# include source here
 ```
 
 <center><img src="`r image`"></center>
@@ -48,22 +63,43 @@ library(tigris)
 
 ### Loading Data
 
-The `covid` data is uploaded directly from the NYC Department of Health and is updated daily while the election data was downloaded from [vote.nyc]("https://vote.nyc/page/election-results-summary".
+The `covid` data is uploaded directly from the NYC Department of Health and is updated daily while the election data was downloaded from [vote.nyc]("https://vote.nyc/page/election-results-summary". We had to update the link for the `covid` dataset to keep the variable names constant and avoid errors later on.
 
 ```{r}
-covid <- read.csv("https://raw.githubusercontent.com/nychealth/coronavirus-data/master/latest/pp-by-modzcta.csv")
+#covid <- read.csv("https://raw.githubusercontent.com/nychealth/coronavirus-data/master/latest/pp-by-modzcta.csv")
+
+covid <- read.csv("https://raw.githubusercontent.com/data607project3-SMDOJ/finalproject/main/Data/pp-by-modzcta.csv")
+
 election <- read.csv("https://raw.githubusercontent.com/data607project3-SMDOJ/finalproject/main/Data/00000100000Citywide%20President%20Vice%20President%20Citywide%20EDLevel.csv",
                      header = FALSE)
 ```
 
 ### Cleaning Data
 
-As with many other projects we utilized tidyverse functions to sort the data. we used `filter` to grab information with an end date of November 3, 2020(election day). We made the data set longer by putting zipcodes in a column utilizing `pivot_longer` function. We also cleaned up our column names utilizing `set_colnames` to make it more understandable with terms such as `date`, `zipcode`, `rate`  
-We also performed routine maintenance of removing leading “x” from the zip code headers utilizing `str_remove` and `str_replace` to remove punctuation from numbers.
+As with many other projects we utilized tidyverse functions to sort the data. 
+we used `filter` to grab information with an end date of November 3, 2020(election day).
+We made the data set longer by putting zipcodes in a column utilizing `pivot_longer` 
+function. We also cleaned up our column names utilizing `set_colnames` to make it more 
+understandable with terms such as `date`, `zipcode`, `rate`  
 
-We also cleaned the `election` data. We removed the first 11 columns as they were messy and actually the headers. `AD` is the assembly district and `ED` is the election district. We also filtered out the results to see where the EDAD was active as some were combined with other election districts since they were very small. We also filtered out the candidates and only looked at the Democratic and Republican candidates, Joseph R. Biden and Donald J. Trump. Afterwards were replaced the entire string, which included the presidential and vice-presidential candidate as a unit, with just the last name of the presidential candidate. We also combined the tallies for each candidate as Trump was a candidate for the Republican and Conservatives parties and Biden was a candidate for the Democratic and Working Families parties. Afterwards, we found the proportion of votes for the candidates, excluding the independent party candidates, in each election district. 
+We also performed routine maintenance of removing leading “x” from the zip code
+headers utilizing `str_remove` and `str_replace` to remove punctuation from numbers.
 
-We also had to create a `ADED` variable which is a 5 digit code which would be used later on to perform a`left_join`.
+We also cleaned the `election` data. We removed the first 11 columns as they were
+messy and actually the headers. `AD` is the assembly district and `ED` is the 
+election district. We also filtered out the results to see where the EDAD was active
+as some were combined with other election districts since they were very small. We 
+also filtered out the candidates and only looked at the Democratic and Republican 
+candidates, Joseph R. Biden and Donald J. Trump. Afterwards were replaced the entire
+string, which included the presidential and vice-presidential candidate as a unit,
+with just the last name of the presidential candidate. We also combined the tallies
+for each candidate as Trump was a candidate for the Republican and Conservatives 
+parties and Biden was a candidate for the Democratic and Working Families parties.
+Afterwards, we found the proportion of votes for the candidates, excluding the 
+independent party candidates, in each election district. 
+
+We also had to create a `ADED` variable which is a 5 digit code which would be 
+used later on to perform a`left_join`.
 
 
 ```{r, warning = FALSE, message = FALSE}
@@ -147,7 +183,6 @@ qtm(ny_zc_geo) +
   tm_legend(show = FALSE)
 
 
-data(ed_geo, ny_zc_geo)
 tmap_mode("plot")
 ## tmap mode set to plotting
 combined <- tm_shape(ed_geo) +
@@ -173,8 +208,7 @@ ed_filter %>%
 
 #low = "red",mid = scales::muted("purple"), high = "blue"
 
-zip_filter <- ny_zc_geo %>%
-  left_join(covid, by = c("modzcta" = "zipcode"))
+zip_filter <- left_join(ny_zc_geo, covid, by = c("modzcta" = "zipcode"))
 
 zip_filter %>%
   ggplot(.) +
@@ -185,7 +219,10 @@ zip_filter %>%
 st_crs(ed_geo) <- 4269 
 st_crs(ny_zc_geo) <- 4269
 
-zip_aded <- st_join(ed_geo,  ny_zc_geo, join = st_intersects) %>%
+#ed_geo <- st_transform(ed_geo, 4269)
+#ny_zc_geo <- st_transform(ny_zc_geo, 4269)
+
+zip_aded <- st_join(ny_zc_geo,  ed_geo, join = st_contains) %>%
   dplyr::select(c(elect_dist, modzcta)) %>%
   st_set_geometry(., NULL) %>%
   set_colnames(c("ADED", "zipcode")) %>%
@@ -197,7 +234,7 @@ Below is when we used the  `tigris` package which allows us to download TIGER/Li
 shapefiles from the US Census Bureau. It does take a few minutes to download the 
 data just for New York alone. 
 
-```{r}
+```{r, echo = FALSE}
 #The process below takes too long so its reuploaded via csv
 
 #ny_zipcode_geo <- zctas(cb = TRUE, state = "36")
@@ -222,26 +259,117 @@ Now since we had a data frame to be used as a reference, we joined the `covid` a
 
 ```{r, warning = FALSE, message = FALSE}
 covid_election <- left_join(covid, zip_aded, by = "zipcode") %>%
-  left_join(., election, by = "ADED")
+  left_join(., election, by = "ADED") %>%
+  na.omit(Propotion)
 
 covid_election <- covid_election[(7:nrow(covid_election)), ]
 
 covid_election %>%
   filter(Candidate == "Biden") %>%
   ggplot(., aes(x = Proportion, y = rate)) + 
-  geom_point() + 
-  ggtitle("Proportion of Biden Voters vs Covid Rate") +
-  geom_smooth(method = "lm")
+  geom_point(color = "Light Blue") + 
+  ggtitle("Proportion of Biden Voters vs Covid Rate in NYC by ED") +
+  geom_smooth(method = "lm", color = "Black")
 
 covid_election %>%
   filter(Candidate == "Trump") %>%
   ggplot(., aes(x = Proportion, y = rate)) + 
-  geom_point() + 
-  ggtitle("Proportion of Trump Voters vs Covid Rate") +
-  geom_smooth(method = "lm")
-
+  geom_point(color = "lightcoral") + 
+  ggtitle("Proportion of Trump Voters vs Covid Rate in NYC by ED") +
+  geom_smooth(method = "lm", color = "Black")
 ```
+
+```{r, warning = FALSE, message = FALSE}
+covid_election %>%
+  filter(Candidate == "Biden") %>%
+  ggplot(., aes(x = Proportion, y = rate)) + 
+  geom_point(color = "Light Blue") + 
+  ggtitle("Proportion of Biden Voters vs Covid Rate by County") +
+  geom_smooth(method = "lm", color = "Black") +
+  facet_wrap(~County)
+
+covid_election %>%
+  filter(Candidate == "Trump") %>%
+  ggplot(., aes(x = Proportion, y = rate)) + 
+  geom_point(color = "lightcoral") + 
+  ggtitle("Proportion of Trump Voters vs Covid Rate by County") +
+  geom_smooth(method = "lm", color = "Black") +
+  facet_wrap(~County)
+
+zip_ce <- covid_election %>%
+  dplyr::select(-c(AD, ED,ADED, Proportion)) %>%
+  group_by(zipcode, Candidate) %>%
+  mutate(Tally = sum(Tally)) %>%
+  ungroup() %>%
+  unique() %>%
+  group_by(zipcode) %>%
+  mutate(Proportion = Tally / sum(Tally)) %>%
+  filter(sum(Tally) != 0) %>%
+  ungroup()
+
+zip_ce %>%
+  filter(Candidate == "Biden") %>%
+  ggplot(., aes(x = Proportion, y = rate)) + 
+  geom_point(color = "Light Blue") + 
+  ggtitle("Proportion of Biden Voters vs Covid Rate in NYC by Zipcode") +
+  geom_smooth(method = "lm", color = "Black")
+
+zip_ce %>%
+  filter(Candidate == "Trump") %>%
+  ggplot(., aes(x = -Proportion, y = rate)) + 
+  geom_point(color = "lightcoral") + 
+  ggtitle("Proportion of Trump Voters vs Covid Rate in NYC by Zipcode") +
+  geom_smooth(method = "lm", color = "Black")
+```
+
+### Multiple Regression Analysis {.tabset}
+
+We also did a multiple regression analysis to see if there is indeed a relationship 
+between COVID positivity rates and the election results. we were able to build a 
+model with an adjusted $R^2$ of 43.79%, which means that nearly 44% of the COVID 
+7 day moving average rates can be explained by the explanatory variables.
+
+```{r, echo = FALSE}
+covid_election <- covid_election %>%
+  mutate(Candidate = as.factor(Candidate),
+         County = as.factor(County))
+
+zip_ce <- zip_ce %>%
+  mutate(Candidate = as.factor(Candidate),
+         County = as.factor(County))
+```
+
+#### Model 1
+
+```{r}
+model <- lm(rate ~  County * Candidate + I(Proportion^2), data = covid_election)
+summary(model)
+```
+
+#### Model 2
+
+```{r}
+model2 <- lm(log1p(rate) ~  County + Candidate + log1p(Proportion), data = covid_election)
+summary(model2)
+```
+
+#### Model 3
+
+```{r}
+model3 <- lm(rate ~  County + Candidate * I(Proportion^2), data = covid_election)
+summary(model3)
+```
+
+#### Model 4
+
+```{r}
+model4 <- lm(rate ~  County + Candidate  + Proportion, data = zip_ce)
+summary(model4)
+```
+
 
 ### Conclusion
 
-In conclusion, we find a connection between higher rates of COVID in districts where Trump votes were higher than Biden’s in New York City.  
+In conclusion, we find a connection between higher rates of COVID infection in zip codes where Trump votes were higher than Biden votes in New York City.  This is more evident in Kings (Brooklyn), Richmond (Staten Island), and New York (Manhattan). According to our multiple regression analysis, with 35-40% of the variability in COVID rates explained by the independent variables, we found the variables with Trump as Candidate and Staten Island had an overall positive effect on the COVID-19 positivity rates.
+
+Also there are some limitations to the data as there are other factors that contribute to COVID rates and that some election districts are shared between zip codes. 
