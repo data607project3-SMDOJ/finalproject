@@ -316,7 +316,7 @@ zip_ce %>%
 
 zip_ce %>%
   filter(Candidate == "Trump") %>%
-  ggplot(., aes(x = -Proportion, y = rate)) + 
+  ggplot(., aes(x = Proportion, y = rate)) + 
   geom_point(color = "lightcoral") + 
   ggtitle("Proportion of Trump Voters vs Covid Rate in NYC by Zipcode") +
   geom_smooth(method = "lm", color = "Black")
