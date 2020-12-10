@@ -63,7 +63,12 @@ library(tigris)
 
 ### Loading Data
 
-The `covid` data is uploaded directly from the NYC Department of Health and is updated daily while the election data was downloaded from [vote.nyc]("https://vote.nyc/page/election-results-summary". We had to update the link for the `covid` dataset to keep the variable names constant and avoid errors later on.
+The `covid` data is uploaded directly from the NYC Department of Health^[NYC Health.
+(2020). *NYC Coronavirus Disease 2019 (COVID-19) Data*. New York, NY. Retrieved from 
+https://github.com/nychealth/coronavirus-data. (2020).] and is updated daily while the
+election data was downloaded from [vote.nyc]("https://vote.nyc/page/election-results-summary".^[NYC Board of Elections.
+(2020). *Citywide President/Vice President Citywide*. New York, NY. Retrieved from https://vote.nyc/page/election-results-summary] 
+We had to update the link for the `covid` dataset to keep the variable names constant and avoid errors later on.
 
 ```{r}
 #covid <- read.csv("https://raw.githubusercontent.com/nychealth/coronavirus-data/master/latest/pp-by-modzcta.csv")
@@ -154,14 +159,27 @@ election <- election %>%
 
 ### Matching Zip Codes to Election District
 
-Here we used shapefiles in order to match the election district to the zip code. We had some challenges here but eventually we figured it out. We downloaded the shapefiles from NYC OpenData for the modified 
-ZIP Code Tabulation Areas (ZCTA) and election districts. They included the boundaries and polygons for each zip code and district.
+Here we used shapefiles in order to match the election district to the zip code. We had some 
+challenges here but eventually we figured it out. We downloaded the shapefiles from NYC OpenData 
+for the modified ZIP Code Tabulation Areas (ZCTA))^[Department of Health and Mental Hygiene (DOHMH). 
+(2020). *Modified Zip Code Tabulation Areas (MODZCTA)*. 
+Retrieved from https://data.cityofnewyork.us/Health/Modified-Zip-Code-Tabulation-Areas-MODZCTA-/pri4-ifjk] 
+and election districts.^[Department of City Planning (DCP). (2020). *Election Districts*. Retrieved from
+https://data.cityofnewyork.us/City-Government/Election-Districts/h2n3-98hq]  They included the boundaries
+and polygons for each zip code and district.
 
-First, we drew a thematic map showcasing the boundaries of the election districts and zip codes. The `combined` map shows the election districts contained in each zip code.
+First, we drew a thematic map showcasing the boundaries of the election districts and zip codes. The 
+`combined` map shows the election districts contained in each zip code.
 
-Then, we joined the election district shapefile with the `election` data frame from earlier. We selected the majority winner from each election district. We assigned them a negative value if majority was Trump and a positive value if majority was Biden. This way when we plotted the shapefile, the negative value were red and positive values were blue. The closer it was to 1, the darker it was. Similarly, we joined the zip code shapefile with the `covid` data from earlier to plot the 7 day rolling average positivity rates on the day of election.
+Then, we joined the election district shapefile with the `election` data frame from earlier. We
+selected the majority winner from each election district. We assigned them a negative value if majority
+was Trump and a positive value if majority was Biden. This way when we plotted the shapefile, the 
+negative value were red and positive values were blue. The closer it was to 1, the darker it was. 
+Similarly, we joined the zip code shapefile with the `covid` data from earlier to plot the 7 day rolling
+average positivity rates on the day of election.
 
-Lastly we created the `zip_aded` which was just a data frame with the Zip codes and ADED codes so that we can use it as a reference to join `covid` and `election`.
+Lastly we created the `zip_aded` which was just a data frame with the Zip codes and ADED codes so that
+we can use it as a reference to join `covid` and `election`.
 
 ```{r, warning = FALSE, message = FALSE}
 # download.file("https://github.com/data607project3-SMDOJ/finalproject/blob/main/Data/geo_export_1acb0e0a-cfac-4e46-99c6-44540a928d68.shp", "geo_export_1acb0e0a-cfac-4e46-99c6-44540a928d68.shp")
@@ -255,7 +273,9 @@ data just for New York alone.
 
 ### Data Visualization
 
-Now since we had a data frame to be used as a reference, we joined the `covid` and `election` data. We made a scatterplot to show the relationship between the proportion for each presidential election and the Covid 7-day rolling average positivity rates.
+Now since we had a data frame to be used as a reference, we joined the `covid` and `election` data. 
+We made a scatterplot to show the relationship between the proportion for each presidential election 
+and the Covid 7-day rolling average positivity rates.
 
 ```{r, warning = FALSE, message = FALSE}
 covid_election <- left_join(covid, zip_aded, by = "zipcode") %>%
@@ -370,6 +390,12 @@ summary(model4)
 
 ### Conclusion
 
-In conclusion, we find a connection between higher rates of COVID infection in zip codes where Trump votes were higher than Biden votes in New York City.  This is more evident in Kings (Brooklyn), Richmond (Staten Island), and New York (Manhattan). According to our multiple regression analysis, with 35-40% of the variability in COVID rates explained by the independent variables, we found the variables with Trump as Candidate and Staten Island had an overall positive effect on the COVID-19 positivity rates.
+In conclusion, we find a connection between higher rates of COVID infection in zip codes where Trump
+votes were higher than Biden votes in New York City.  This is more evident in Kings (Brooklyn),
+Richmond (Staten Island), and New York (Manhattan). According to our multiple regression analysis,
+with 35-40% of the variability in COVID rates explained by the independent variables, we found the 
+variables with Trump as Candidate and Staten Island had an overall positive effect on the COVID-19
+positivity rates.
 
-Also there are some limitations to the data as there are other factors that contribute to COVID rates and that some election districts are shared between zip codes. 
+Also there are some limitations to the data as there are other factors that contribute to COVID
+rates and that some election districts are shared between zip codes. 
